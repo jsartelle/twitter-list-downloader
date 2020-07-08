@@ -73,13 +73,13 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
             }
 
             if (tweet.extended_entities && tweet.extended_entities.media) {
-                tweet.extended_entities.media.forEach(media => {
+                tweet.extended_entities.media.forEach((media, index) => {
                     /* TODO: support videos & GIFs */
                     if (media.type === 'photo') {
                         const dir = isRetweet ?
                             `./out/${listInfo[listId].name}/retweets/` :
                             `./out/${listInfo[listId].name}/`;
-                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}`;
+                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index}`;
                         const ext = path.extname(media.media_url_https);
 
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

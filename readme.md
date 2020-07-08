@@ -1,6 +1,8 @@
 # Setup
 
-Run the app once (<kbd>node index.js</kbd>) to create a config file, located at `config/config.json`.
+Run `npm install` to install dependencies.
+
+Run the app once (`node index.js`) to create a config file, located at `config/config.json`.
 
 Register as a Twitter developer at <https://developer.twitter.com/> and create a new app. Under "Keys and tokens", generate an access token & secret. In the config file, fill in the `auth` section with the values for your app.
 
