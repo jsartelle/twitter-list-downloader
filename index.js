@@ -48,12 +48,20 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
             });
         }
 
+        const allowedMediaTypes = {
+            /* jshint ignore:start */
+            "photo": listOptions?.mediaTypes?.photo ?? true,
+            "video": listOptions?.mediaTypes?.video ?? true,
+            "animated_gif": listOptions?.mediaTypes?.animated_gif ?? true
+            /* jshint ignore:end */
+        };
+
         const statusesConfig = {
             list_id: listId,
             include_rts: listOptions.retweets,
             count: 1000
         };
-        if (listInfo[listId].latestTweetId) {
+        if (!listOptions.ignoreLatestTweetId && listInfo[listId].latestTweetId) {
             statusesConfig.since_id = listInfo[listId].latestTweetId;
         }
         const statuses = await twitter.get('lists/statuses', statusesConfig);
@@ -74,11 +82,7 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
 
             if (tweet.extended_entities && tweet.extended_entities.media) {
                 tweet.extended_entities.media.forEach((media, index) => {
-                    if (
-                        media.type === 'photo' ||
-                        media.type === 'video' ||
-                        media.type === 'animated_gif'
-                    ) {
+                    if (allowedMediaTypes[media.type]) {
                         let ext, url;
                         switch (media.type) {
                             case 'photo':
