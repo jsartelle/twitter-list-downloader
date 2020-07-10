@@ -58,7 +58,7 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
         }
         const statuses = await twitter.get('lists/statuses', statusesConfig);
 
-        console.debug(`${statuses.length} items in list ${listId}`);
+        console.debug(`Got ${statuses.length} tweets in list ${listInfo[listId].name}`);
 
         let latestTweetDate, latestTweetId;
 
@@ -74,22 +74,43 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
 
             if (tweet.extended_entities && tweet.extended_entities.media) {
                 tweet.extended_entities.media.forEach((media, index) => {
-                    /* TODO: support videos & GIFs */
-                    if (media.type === 'photo') {
+                    if (
+                        media.type === 'photo' ||
+                        media.type === 'video' ||
+                        media.type === 'animated_gif'
+                    ) {
+                        let ext, url;
+                        switch (media.type) {
+                            case 'photo':
+                                ext = path.extname(media.media_url_https);
+                                url = media.media_url_https + ':orig';
+                                break;
+                            case 'video':
+                            case 'animated_gif':
+                                ext = '.mp4';
+                                url = media.video_info.variants.reduce((prev, curr) => {
+                                    if (
+                                        curr.content_type !== 'video/mp4' ||
+                                        curr.bitrate <= prev.bitrate
+                                    ) return prev;
+                                    return curr;
+                                }, media.video_info.variants[0]).url;
+                                break;
+                        }
+
                         const dir = isRetweet ?
                             `./out/${listInfo[listId].name}/retweets/` :
                             `./out/${listInfo[listId].name}/`;
-                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index}`;
-                        const ext = path.extname(media.media_url_https);
+                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index + 1}`;
 
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
                         if (listOptions.dryRun) {
-                            fs.writeFile(dir + base, '', () => { });
+                            fs.writeFile(dir + base + ext + '_blank', '', () => { });
 
                         } else {
                             const stream = fs.createWriteStream(dir + base + ext);
-                            https.get(media.media_url_https + ':orig', res => {
+                            https.get(url, res => {
                                 res.pipe(stream);
                                 stream.on('finish', stream.end);
 
