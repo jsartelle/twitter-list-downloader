@@ -113,15 +113,17 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
                             fs.writeFile(dir + base + ext + '_blank', '', () => { });
 
                         } else {
-                            const stream = fs.createWriteStream(dir + base + ext);
-                            https.get(url, res => {
-                                res.pipe(stream);
-                                stream.on('finish', stream.end);
+                            if (!fs.existsSync(dir + base + ext)) {
+                                const stream = fs.createWriteStream(dir + base + ext);
+                                https.get(url, res => {
+                                    res.pipe(stream);
+                                    stream.on('finish', stream.end);
+                                    stream.on('error', err => console.warn(err));
 
-                            }).on('error', err => {
-                                console.warn(err);
-                            });
-
+                                }).on('error', err => {
+                                    console.warn(err);
+                                });
+                            }
                         }
                     }
                 });
