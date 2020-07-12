@@ -16,8 +16,8 @@ if (!fs.existsSync('./config/config.json')) {
             "access_token_secret": "Access token secret"
         },
         "lists": {
-            "List ID": {
-                "retweets": true
+            "LIST_ID": {
+                "retweets": false
             }
         }
     }, null, '\t'));
@@ -84,6 +84,13 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
             if (tweet.extended_entities && tweet.extended_entities.media) {
                 tweet.extended_entities.media.forEach((media, index) => {
                     if (allowedMediaTypes[media.type]) {
+                        let dir = listOptions?.paths?.output ?? `./out/${listInfo[listId].name}/`; // jshint ignore:line
+                        if (isRetweet) {
+                            dir = listOptions?.paths?.retweets ?? path.join(dir, 'retweets'); // jshint ignore:line
+                        }
+
+                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index + 1}`;
+
                         let ext, url;
                         switch (media.type) {
                             case 'photo':
@@ -103,19 +110,18 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
                                 break;
                         }
 
-                        const dir = isRetweet ?
-                            `./out/${listInfo[listId].name}/retweets/` :
-                            `./out/${listInfo[listId].name}/`;
-                        const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index + 1}`;
-
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
+                        const destinationPath = path.join(dir, base + ext);
+
                         if (listOptions.dryRun) {
-                            fs.writeFile(dir + base + ext + '_blank', '', () => { });
+                            fs.writeFile(destinationPath + '_blank', '', (err) => {
+                                if (err) console.warn(err);
+                            });
 
                         } else {
-                            if (!fs.existsSync(dir + base + ext)) {
-                                const stream = fs.createWriteStream(dir + base + ext);
+                            if (!fs.existsSync(destinationPath)) {
+                                const stream = fs.createWriteStream(destinationPath);
                                 https.get(url, res => {
                                     res.pipe(stream);
                                     stream.on('finish', stream.end);
