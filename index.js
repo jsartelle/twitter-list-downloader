@@ -59,7 +59,8 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
         const statusesConfig = {
             list_id: listId,
             include_rts: listOptions.retweets,
-            count: 1000
+            count: 1000,
+            tweet_mode: "extended"
         };
         if (!listOptions.ignoreLatestTweetId && listInfo[listId].latestTweetId) {
             statusesConfig.since_id = listInfo[listId].latestTweetId;
