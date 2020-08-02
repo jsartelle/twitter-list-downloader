@@ -72,8 +72,8 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
         let latestTweetDate, latestTweetId;
 
         statuses.forEach(status => {
-            const isRetweet = Boolean(status.retweeted_status);
-            const tweet = status.retweeted_status || status;
+            const isRetweet = Boolean(status.retweeted_status || status.quoted_status);
+            const tweet = status.retweeted_status || status.quoted_status || status;
 
             const tweetDate = luxon.DateTime.fromFormat(tweet.created_at, 'EEE MMM dd HH:mm:ss ZZZ yyyy');
             if (!latestTweetDate || tweetDate > latestTweetDate) {
