@@ -18,6 +18,8 @@ Default values are shown.
 "List ID": {
     // Also save retweeted media
     "retweets": false,
+    // Log retweets to a text file (format: <retweeter> : <retweeted media name>)
+    "logRetweets": false,
     // Save these types of media (animated GIFs are saved as mp4)
     "mediaTypes": {
         "photo": true,

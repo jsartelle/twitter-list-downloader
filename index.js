@@ -69,7 +69,11 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
 
         console.debug(`Got ${statuses.length} tweets in list ${listInfo[listId].name}`);
 
+        const baseDir = listOptions?.paths?.output ?? `./out/${listInfo[listId].name}/`; // jshint ignore:line
+        const retweetDir = listOptions?.paths?.retweets ?? path.join(baseDir, 'retweets'); // jshint ignore:line
+
         let latestTweetDate, latestTweetId;
+        let retweetLog = '';
 
         statuses.forEach(status => {
             const isRetweet = Boolean(status.retweeted_status || status.quoted_status);
@@ -84,12 +88,7 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
             if (tweet.extended_entities && tweet.extended_entities.media) {
                 tweet.extended_entities.media.forEach((media, index) => {
                     if (allowedMediaTypes[media.type]) {
-                        const baseDir = listOptions?.paths?.output ?? `./out/${listInfo[listId].name}/`; // jshint ignore:line
-                        let dir = baseDir;
-
-                        if (isRetweet) {
-                            dir = listOptions?.paths?.retweets ?? path.join(dir, 'retweets'); // jshint ignore:line
-                        }
+                        const dir = isRetweet ? retweetDir : baseDir;
 
                         const base = `${tweet.user.screen_name}_${tweetDate.toISODate()}_${tweet.id_str}_${index + 1}`;
 
@@ -136,6 +135,10 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
                                     console.warn(err);
                                 });
                             }
+
+                            if (isRetweet) {
+                                retweetLog += `${status.user.screen_name} : ${base + ext}\n`;
+                            }
                         }
                     }
                 });
@@ -143,6 +146,8 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
         });
 
         if (latestTweetId) listInfo[listId].latestTweetId = latestTweetId;
+
+        if (listOptions.logRetweets) fs.appendFileSync(path.join(retweetDir, '_retweets.txt'), retweetLog);
 
     } catch (err) {
         // TODO: better error handling
