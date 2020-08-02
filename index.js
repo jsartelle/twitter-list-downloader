@@ -84,7 +84,9 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
             if (tweet.extended_entities && tweet.extended_entities.media) {
                 tweet.extended_entities.media.forEach((media, index) => {
                     if (allowedMediaTypes[media.type]) {
-                        let dir = listOptions?.paths?.output ?? `./out/${listInfo[listId].name}/`; // jshint ignore:line
+                        const baseDir = listOptions?.paths?.output ?? `./out/${listInfo[listId].name}/`; // jshint ignore:line
+                        let dir = baseDir;
+
                         if (isRetweet) {
                             dir = listOptions?.paths?.retweets ?? path.join(dir, 'retweets'); // jshint ignore:line
                         }
@@ -109,18 +111,21 @@ const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
                                 }, media.video_info.variants[0]).url;
                                 break;
                         }
+                        if (listOptions.dryRun) ext += '_blank';
 
                         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
+                        const baseDestinationPath = path.join(baseDir, base + ext);
                         const destinationPath = path.join(dir, base + ext);
 
-                        if (listOptions.dryRun) {
-                            fs.writeFile(destinationPath + '_blank', '', (err) => {
-                                if (err) console.warn(err);
-                            });
+                        // do not save retweeted media if it already exists in the base folder
+                        if (!fs.existsSync(baseDestinationPath) && !fs.existsSync(destinationPath)) {
+                            if (listOptions.dryRun) {
+                                fs.writeFile(destinationPath, '', (err) => {
+                                    if (err) console.warn(err);
+                                });
 
-                        } else {
-                            if (!fs.existsSync(destinationPath)) {
+                            } else {
                                 const stream = fs.createWriteStream(destinationPath);
                                 https.get(url, res => {
                                     res.pipe(stream);
