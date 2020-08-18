@@ -5,19 +5,27 @@ import path from 'path';
 import process from 'process';
 import Twitter from 'twitter-lite';
 
-if (!fs.existsSync('./config')) fs.mkdirSync('./config');
+const CONFIG_PATH = './config/config.json';
+const METADATA_PATH = './config/metadata.json';
 
-if (!fs.existsSync('./config/config.json')) {
-    fs.writeFileSync('./config/config.json', JSON.stringify({
+if (!fs.existsSync(path.dirname(CONFIG_PATH))) fs.mkdirSync(path.dirname(CONFIG_PATH));
+
+if (!fs.existsSync(CONFIG_PATH)) {
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify({
         "auth": {
             "consumer_key": "API key",
             "consumer_secret": "API secret key",
             "access_token_key": "Access token",
             "access_token_secret": "Access token secret"
         },
+        "users": {
+            "USER_NAME": {
+                "retweets": true
+            }
+        },
         "lists": {
             "LIST_ID": {
-                "retweets": false
+                "retweets": true
             }
         }
     }, null, '\t'));
@@ -26,52 +34,91 @@ if (!fs.existsSync('./config/config.json')) {
     process.exit();
 }
 
-const config = JSON.parse(fs.readFileSync('./config/config.json'));
+const config = JSON.parse(fs.readFileSync(CONFIG_PATH));
 const twitter = new Twitter(config.auth);
 
-const lists = Object.entries(config.lists);
-
-if (!fs.existsSync('./config/listInfo.json')) {
-    fs.writeFileSync('./config/listInfo.json', JSON.stringify({}));
+if (!fs.existsSync(METADATA_PATH)) {
+    fs.writeFileSync(METADATA_PATH, JSON.stringify({
+        users: {},
+        lists: {}
+    }));
 }
-const listInfo = JSON.parse(fs.readFileSync('./config/listInfo.json'));
+const metadata = JSON.parse(fs.readFileSync(METADATA_PATH));
 
-const listsPromise = Promise.all(lists.map(async ([listId, listOptions]) => {
+const users = Object.entries(config.users || {});
+const lists = Object.entries(config.lists || {});
+
+const usersPromises = users.map(async ([username, options]) => {
     try {
-        if (!listInfo[listId]) {
+        if (!metadata.users[username]) {
+            metadata.users[username] = {
+                latestTweetId: null
+            };
+        }
+
+        const requestConfig = {
+            // TODO: use max_id parameter to get older tweets
+            screen_name: username,
+            include_rts: options.retweets,
+            count: 200,
+            tweet_mode: "extended"
+        };
+        if (!options.ignoreLatestTweetId && metadata.users[username].latestTweetId) {
+            requestConfig.since_id = metadata.users[username].latestTweetId;
+        }
+
+        const statuses = await twitter.get('statuses/user_timeline', requestConfig);
+
+        console.debug(`Got ${statuses.length} tweets from user ${username}`);
+
+        const { latestTweetId } = saveStatuses(statuses, username, options);
+        metadata.users[username].latestTweetId = latestTweetId;
+
+    } catch (err) {
+        // TODO: better error handling
+        console.warn(err);
+    }
+});
+
+const listsPromises = lists.map(async ([listId, options]) => {
+    try {
+        if (!metadata.lists[listId]) {
             await twitter.get('lists/show', {
                 list_id: listId
             }).then(res => {
-                listInfo[listId] = {
-                    name: res.name
+                metadata.lists[listId] = {
+                    name: res.name,
+                    latestTweetId: null
                 };
             });
         }
 
         const requestConfig = {
             list_id: listId,
-            include_rts: listOptions.retweets,
+            include_rts: options.retweets,
             count: 1000,
-            tweet_mode: "extended"
+            tweet_mode: "extended",
         };
-        if (!listOptions.ignoreLatestTweetId && listInfo[listId].latestTweetId) {
-            requestConfig.since_id = listInfo[listId].latestTweetId;
+        if (!options.ignoreLatestTweetId && metadata.lists[listId].latestTweetId) {
+            requestConfig.since_id = metadata.lists[listId].latestTweetId;
         }
+
         const statuses = await twitter.get('lists/statuses', requestConfig);
 
-        console.debug(`Got ${statuses.length} tweets in list ${listInfo[listId].name}`);
+        console.debug(`Got ${statuses.length} tweets in list ${metadata.lists[listId].name}`);
 
-        const { latestTweetId } = saveStatuses(statuses, listInfo[listId].name, listOptions);
-        listInfo[listId].latestTweetId = latestTweetId;
+        const { latestTweetId } = saveStatuses(statuses, metadata.lists[listId].name, options);
+        metadata.lists[listId].latestTweetId = latestTweetId;
 
     } catch (err) {
         // TODO: better error handling
         console.warn(err);
     }
-}));
+});
 
-listsPromise.then(() => {
-    fs.writeFileSync('./config/listInfo.json', JSON.stringify(listInfo, null, '\t'));
+
+Promise.all([...usersPromises, ...listsPromises]).then(() => {
+    fs.writeFileSync(METADATA_PATH, JSON.stringify(metadata, null, '\t'));
 });
 
 /* --- */
