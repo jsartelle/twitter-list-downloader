@@ -48,40 +48,35 @@ const metadata = JSON.parse(fs.readFileSync(METADATA_PATH));
 const users = Object.entries(config.users || {});
 const lists = Object.entries(config.lists || {});
 
-const usersPromises = users.map(async ([username, options]) => {
-    try {
+try {
+    const usersPromises = users.map(async ([username, options]) => {
         if (!metadata.users[username]) {
             metadata.users[username] = {
                 latestTweetId: null
             };
         }
 
-        const requestConfig = {
-            // TODO: use max_id parameter to get older tweets
+        const config = {
             screen_name: username,
             include_rts: options.retweets,
             count: 200,
             tweet_mode: "extended"
         };
-        if (!options.ignoreLatestTweetId && metadata.users[username].latestTweetId) {
-            requestConfig.since_id = metadata.users[username].latestTweetId;
-        }
 
-        const statuses = await twitter.get('statuses/user_timeline', requestConfig);
+        const statuses = await getMaxStatuses(
+            'statuses/user_timeline',
+            config,
+            options.ignoreLatestTweetId ? null : metadata.users[username].latestTweetId
+        );
 
         console.debug(`Got ${statuses.length} tweets from user ${username}`);
 
         const { latestTweetId } = saveStatuses(statuses, username, options);
         metadata.users[username].latestTweetId = latestTweetId;
 
-    } catch (err) {
-        // TODO: better error handling
-        console.warn(err);
-    }
-});
+    });
 
-const listsPromises = lists.map(async ([listId, options]) => {
-    try {
+    const listsPromises = lists.map(async ([listId, options]) => {
         if (!metadata.lists[listId]) {
             await twitter.get('lists/show', {
                 list_id: listId
@@ -93,35 +88,57 @@ const listsPromises = lists.map(async ([listId, options]) => {
             });
         }
 
-        const requestConfig = {
+        const config = {
             list_id: listId,
             include_rts: options.retweets,
             count: 1000,
             tweet_mode: "extended",
         };
-        if (!options.ignoreLatestTweetId && metadata.lists[listId].latestTweetId) {
-            requestConfig.since_id = metadata.lists[listId].latestTweetId;
-        }
 
-        const statuses = await twitter.get('lists/statuses', requestConfig);
+        const statuses = await getMaxStatuses(
+            'lists/statuses',
+            config,
+            options.ignoreLatestTweetId ? null : metadata.lists[listId].latestTweetId
+        );
 
         console.debug(`Got ${statuses.length} tweets in list ${metadata.lists[listId].name}`);
 
         const { latestTweetId } = saveStatuses(statuses, metadata.lists[listId].name, options);
         metadata.lists[listId].latestTweetId = latestTweetId;
-
-    } catch (err) {
-        // TODO: better error handling
-        console.warn(err);
-    }
-});
+    });
 
 
-Promise.all([...usersPromises, ...listsPromises]).then(() => {
-    fs.writeFileSync(METADATA_PATH, JSON.stringify(metadata, null, '\t'));
-});
+    Promise.all([...usersPromises, ...listsPromises]).then(() => {
+        fs.writeFileSync(METADATA_PATH, JSON.stringify(metadata, null, '\t'));
+    });
+
+} catch (err) {
+    // TODO: better error handling
+    console.error(err);
+}
 
 /* --- */
+
+async function getMaxStatuses(endpoint, baseConfig, latestTweetId) {
+    let statuses = [], maxId;
+
+    while (true) {
+        const requestConfig = { ...baseConfig };
+
+        if (latestTweetId) requestConfig.since_id = latestTweetId;
+
+        if (maxId) requestConfig.max_id = maxId;
+
+        const results = await twitter.get(endpoint, requestConfig);
+
+        if (results.length && maxId !== results[results.length - 1].id_str) {
+            statuses = statuses.concat(results);
+            maxId = results[results.length - 1].id_str;
+        } else {
+            return statuses;
+        }
+    }
+}
 
 function saveStatuses(statuses, folderName, options) {
     const baseDir = options.paths?.output ?? `./out/${folderName}/`; // jshint ignore:line
@@ -208,7 +225,9 @@ function saveStatuses(statuses, folderName, options) {
         }
     });
 
-    if (options.logRetweets) fs.appendFileSync(path.join(retweetDir, '_retweets.txt'), retweetLog);
+    if (options.logRetweets && fs.existsSync(retweetDir)) {
+        fs.appendFileSync(path.join(retweetDir, '_retweets.txt'), retweetLog);
+    }
 
     return {
         latestTweetId
