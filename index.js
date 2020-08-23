@@ -52,7 +52,8 @@ try {
     const usersPromises = users.map(async ([username, options]) => {
         if (!metadata.users[username]) {
             metadata.users[username] = {
-                latestTweetId: null
+                latestTweetId: null,
+                latestTweetDate: null
             };
         }
 
@@ -66,13 +67,24 @@ try {
         const statuses = await getMaxStatuses(
             'statuses/user_timeline',
             config,
-            options.ignoreLatestTweetId ? null : metadata.users[username].latestTweetId
+            options,
+            metadata.users[username]
         );
 
         console.debug(`Got ${statuses.length} tweets from user ${username}`);
 
-        const { latestTweetId } = saveStatuses(statuses, username, options);
-        metadata.users[username].latestTweetId = latestTweetId;
+        const { latestTweetId, latestTweetDate } = saveStatuses(statuses, username, options);
+
+        if (
+            latestTweetDate
+            && (
+                !metadata.users[username].latestTweetDate
+                || luxon.DateTime.fromISO(metadata.users[username].latestTweetDate) < latestTweetDate
+            )
+        ) {
+            metadata.users[username].latestTweetId = latestTweetId;
+            metadata.users[username].latestTweetDate = latestTweetDate;
+        }
 
     });
 
@@ -83,7 +95,8 @@ try {
             }).then(res => {
                 metadata.lists[listId] = {
                     name: res.name,
-                    latestTweetId: null
+                    latestTweetId: null,
+                    latestTweetDate: null
                 };
             });
         }
@@ -98,13 +111,24 @@ try {
         const statuses = await getMaxStatuses(
             'lists/statuses',
             config,
-            options.ignoreLatestTweetId ? null : metadata.lists[listId].latestTweetId
+            options,
+            metadata.lists[listId]
         );
 
         console.debug(`Got ${statuses.length} tweets in list ${metadata.lists[listId].name}`);
 
-        const { latestTweetId } = saveStatuses(statuses, metadata.lists[listId].name, options);
-        metadata.lists[listId].latestTweetId = latestTweetId;
+        const { latestTweetId, latestTweetDate } = saveStatuses(statuses, metadata.lists[listId].name, options);
+
+        if (
+            latestTweetDate
+            && (
+                !metadata.lists[listId].latestTweetDate
+                || luxon.DateTime.fromISO(metadata.lists[listId].latestTweetDate) < latestTweetDate
+            )
+        ) {
+            metadata.lists[listId].latestTweetId = latestTweetId;
+            metadata.lists[listId].latestTweetDate = latestTweetDate;
+        }
     });
 
 
@@ -119,13 +143,17 @@ try {
 
 /* --- */
 
-async function getMaxStatuses(endpoint, baseConfig, latestTweetId) {
+async function getMaxStatuses(endpoint, baseConfig, options, metadata) {
+    const latestTweetDate = luxon.DateTime.fromISO(metadata.latestTweetDate);
+
     let statuses = [], maxId;
 
     while (true) {
         const requestConfig = { ...baseConfig };
 
-        if (latestTweetId) requestConfig.since_id = latestTweetId;
+        if (!options.ignoreLatestTweetId && metadata.latestTweetId) {
+            requestConfig.since_id = metadata.latestTweetId;
+        }
 
         if (maxId) requestConfig.max_id = maxId;
 
@@ -135,6 +163,17 @@ async function getMaxStatuses(endpoint, baseConfig, latestTweetId) {
             statuses = statuses.concat(results);
             maxId = results[results.length - 1].id_str;
         } else {
+            // Twitter will often return tweets older than we want even when the since_id parameter is used,
+            // so filter out any tweets older than the latestTweetDate.
+            // For retweets and quote tweets look at the date of the retweeter's status,
+            // not the status that was retweeted or quoted.
+            if (!options.ignoreLatestTweetId && metadata.latestTweetDate) {
+                statuses = statuses.filter(status => {
+                    return luxon.DateTime.fromFormat(status.created_at, 'EEE MMM dd HH:mm:ss ZZZ yyyy')
+                        >= latestTweetDate;
+                });
+            }
+
             return statuses;
         }
     }
@@ -230,6 +269,7 @@ function saveStatuses(statuses, folderName, options) {
     }
 
     return {
-        latestTweetId
+        latestTweetId,
+        latestTweetDate
     };
 }
