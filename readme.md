@@ -16,7 +16,9 @@ Default values are shown.
 
 ```js
 "Username or List ID": {
-    // Also save retweeted media
+    // Include media from replies
+    "replies": true,
+    // Include media from retweets & quote tweets
     "retweets": false,
     // Log retweets to a text file (format: <retweeter> : <retweeted media name>)
     "logRetweets": false,

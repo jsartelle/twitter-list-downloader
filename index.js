@@ -59,7 +59,8 @@ try {
 
         const config = {
             screen_name: username,
-            include_rts: options.retweets,
+            exclude_replies: "replies" in options ? !options.replies : false,
+            include_rts: Boolean(options.retweets),
             count: 200,
             tweet_mode: "extended"
         };
@@ -103,9 +104,10 @@ try {
 
         const config = {
             list_id: listId,
-            include_rts: options.retweets,
+            exclude_replies: "replies" in options ? !options.replies : false,
+            include_rts: Boolean(options.retweets),
             count: 1000,
-            tweet_mode: "extended",
+            tweet_mode: "extended"
         };
 
         const statuses = await getMaxStatuses(
@@ -183,7 +185,7 @@ function saveStatuses(statuses, folderName, options) {
     const baseDir = options.paths?.output ?? `./out/${folderName}/`; // jshint ignore:line
     const retweetDir = options.paths?.retweets ?? path.join(baseDir, 'retweets'); // jshint ignore:line
 
-    const allowedMediaTypes = {
+    const allowedMediaTypes = { 
         /* jshint ignore:start */
         "photo": options.mediaTypes?.photo ?? true,
         "video": options.mediaTypes?.video ?? true,
