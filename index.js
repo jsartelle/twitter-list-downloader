@@ -198,6 +198,9 @@ function saveStatuses(statuses, folderName, options) {
 
     statuses.forEach(status => {
         const isRetweet = Boolean(status.retweeted_status || status.quoted_status);
+        // Twitter sometimes ignores the include_rts parameter
+        if (isRetweet && !options.retweets) return;
+
         const tweet = status.retweeted_status || status.quoted_status || status;
 
         const tweetDate = luxon.DateTime.fromFormat(tweet.created_at, 'EEE MMM dd HH:mm:ss ZZZ yyyy');
