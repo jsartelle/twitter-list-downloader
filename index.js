@@ -203,6 +203,10 @@ function saveStatuses(statuses, folderName, options) {
 
         const tweet = status.retweeted_status || status.quoted_status || status;
 
+        if (testExclusions(tweet.user.screen_name, options.exclude?.users))
+            return;
+        if (testExclusions(tweet.full_text, options.exclude?.keywords)) return;
+
         const tweetDate = luxon.DateTime.fromFormat(tweet.created_at, 'EEE MMM dd HH:mm:ss ZZZ yyyy');
         if (!latestTweetDate || tweetDate > latestTweetDate) {
             latestTweetDate = tweetDate;
@@ -277,4 +281,23 @@ function saveStatuses(statuses, folderName, options) {
         latestTweetId,
         latestTweetDate
     };
+}
+
+function testExclusions(string, exclusions) {
+    if (!Array.isArray(exclusions)) return false;
+
+    for (const pattern of exclusions) {
+        let regexp;
+        if (Array.isArray(pattern)) {
+            regexp = new RegExp(pattern[0], pattern[1]);
+        } else if (typeof pattern === "string") {
+            regexp = new RegExp(`\\W${pattern}\\W`, "i");
+        }
+
+        if (regexp.test(string)) {
+            console.info(`"${string}" matched exclusion pattern ${regexp}`);
+            return true;
+        }
+    }
+    return false;
 }

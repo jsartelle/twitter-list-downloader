@@ -33,6 +33,10 @@ Default values are shown.
         "users": [],
         // Ignore tweets containing these keywords
         "keywords": []
+
+        // Strings use whole word case-insensitive matching.
+        // To use regex, provide an array in the form [pattern, flags]
+        // ex. ["foo\\w?", "gi"] (\ needs to be escaped)
     },
     "paths": {
         // Path to output folder
