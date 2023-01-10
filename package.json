@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "luxon": "^1.24.1",
+    "luxon": "^1.28.1",
     "twitter-lite": "^0.14.0"
   },
   "type": "module"
