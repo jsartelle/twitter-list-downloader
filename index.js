@@ -23,6 +23,9 @@ if (!fs.existsSync(CONFIG_PATH)) {
                 "retweets": true
             }
         },
+        "likes": {
+            "USER_NAME": {}
+        },
         "lists": {
             "LIST_ID": {
                 "retweets": true
@@ -40,12 +43,14 @@ const twitter = new Twitter(config.auth);
 if (!fs.existsSync(METADATA_PATH)) {
     fs.writeFileSync(METADATA_PATH, JSON.stringify({
         users: {},
+        likes: {},
         lists: {}
     }));
 }
 const metadata = JSON.parse(fs.readFileSync(METADATA_PATH));
 
 const users = Object.entries(config.users || {});
+const likes = Object.entries(config.likes || {});
 const lists = Object.entries(config.lists || {});
 
 try {
@@ -85,6 +90,44 @@ try {
         ) {
             metadata.users[username].latestTweetId = latestTweetId;
             metadata.users[username].latestTweetDate = latestTweetDate;
+        }
+
+    });
+
+    const likesPromises = likes.map(async ([username, options]) => {
+        if (!metadata.likes[username]) {
+            metadata.likes[username] = {
+                latestTweetId: null,
+                latestTweetDate: null
+            };
+        }
+
+        const config = {
+            screen_name: username,
+            count: 200,
+            tweet_mode: "extended"
+        };
+
+        const statuses = await getMaxStatuses(
+            'favorites/list',
+            config,
+            options,
+            metadata.likes[username]
+        );
+
+        console.debug(`Got ${statuses.length} likes from user ${username}`);
+
+        const { latestTweetId, latestTweetDate } = saveStatuses(statuses, username, options);
+
+        if (
+            latestTweetDate
+            && (
+                !metadata.likes[username].latestTweetDate
+                || luxon.DateTime.fromISO(metadata.likes[username].latestTweetDate) < latestTweetDate
+            )
+        ) {
+            metadata.likes[username].latestTweetId = latestTweetId;
+            metadata.likes[username].latestTweetDate = latestTweetDate;
         }
 
     });
